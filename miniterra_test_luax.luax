@@ -2,8 +2,8 @@ require'pp'
 import'miniterra'
 print'hello'
 
-local int = 'int!'
-local bool = 'bool!'
+local int  = {type = 'type', ctype = 'int'}
+local bool = {type = 'type', ctype = 'bool'}
 
 struct S {
 
@@ -14,9 +14,15 @@ struct S {
 
 terra g :: {int, int} -> bool
 
+function add(sym)
+	pr(sym)
+end
+
 terra f(a: bool, b: int) : {int, bool}
 
 	var i: int, j: bool = 5, true
+
+	[ add(i) ]
 
 end
 

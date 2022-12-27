@@ -1,3 +1,6 @@
+--go@ x:\sdk\bin\windows\luajit.exe miniterra_test.lua
+
+if not ... then require'miniterra_test'; return end
 
 require'glue'
 
@@ -5,15 +8,15 @@ local
 	push, pop, concat, tuple, unpack =
 	push, pop, concat, tuple, unpack
 
-local t2 = {}
+local mt = {}
 
-function t2.struct(t)
+function mt.struct(t)
 	t.type = 'type'
 	t.kind = 'struct'
 	return t
 end
 
-function t2.type(t)
+function mt.type(t)
 	if not t.type then --tuple
 		t = tuple(unpack(t))
 		t.type = 'type'
@@ -22,15 +25,20 @@ function t2.type(t)
 	return t
 end
 
-function t2.func(t)
+function mt.func(t)
 	t.type = 'func'
 	return t
 end
 
-function t2.functype(t)
+function mt.functype(t)
 	t.type = 'type'
 	t.kind = 'func'
 	return t
+end
+
+local function add(t, v)
+	push(t, v)
+	return #t
 end
 
 local function expression_function(lx)
@@ -44,6 +52,10 @@ local function expression_function(lx)
 	local expectmatch = lx.expectmatch
 	local line = lx.line
 	local luaexpr = lx.luaexpr
+	local luastats = lx.luastats
+	local symbol = lx.symbol
+	local begin_scope = lx.begin_scope
+	local end_scope = lx.end_scope
 
 	local function isend() --check for end of block
 		local tk = cur()
@@ -98,12 +110,33 @@ local function expression_function(lx)
 		return expectval'<name>'
 	end
 
+	local block -- fw. decl.
+
+	local function type()
+		local bind_type = luaexpr()
+		if nextif'->' then
+			--TODO: this is wrong: operator priority > than that of `and` and `or`
+			--TODO: remove this after implementing extensible operators.
+			local bind_rettype = luaexpr()
+			return function(...)
+				return mt.functype({
+					args_type = bind_type(...),
+					ret_type  = bind_rettype(...),
+				})
+			end
+		else
+			return function(...)
+				return mt.type(bind_type(...))
+			end
+		end
+	end
+
 	local function funcdecl(name) --args_type [-> return_type]
 		local bind_args_type = luaexpr()
 		expect'->'
 		local bind_ret_type = luaexpr()
 		return function(...)
-			return t2.func{
+			return mt.func{
 				name = name,
 				args_type = bind_args_type(...),
 				ret_type = bind_ret_type(...),
@@ -122,29 +155,30 @@ local function expression_function(lx)
 	end
 
 	local function enter_scope()
-		--
+		begin_scope()
 	end
 
 	local function exit_scope()
-		--
+		end_scope()
 	end
+
+	local f --current function object
 
 	local function funcdef(name, line, pos)
 
 		--params: (name:type,...[,...])
 		local tk = expect'('
-		local t = {type = 'func', name = name, args = {}}
+		local t = {name = name, arg_names = {}, args_type = {}, body = {}}
 		if tk ~= ')' then
 			repeat
 				if tk == '<name>' then
 					local name = expectname()
 					expect':'
 					local bind_type = luaexpr()
-					push(t.args, name)
-					push(t.args, false) --type slot
-					local type_slot = #t.args
+					add(t.arg_names, name)
+					local type_slot = add(t.args_type, true)
 					t[#t+1] = function(...)
-						t.args[type_slot] = bind_type(...) or false
+						t.args_type[type_slot] = bind_type(...) or false
 					end
 				elseif tk == '...' then
 					t.vararg = true
@@ -167,14 +201,15 @@ local function expression_function(lx)
 		end
 
 		--body
-		block(t)
+		f = t
+		block()
 		if cur() ~= 'end' then
 			expectmatch('end', 'terra', line, pos)
 		end
 		next()
 		local bind = bindlist(t)
 		return function(...)
-			return t2.func(bind(...))
+			return mt.func(bind(...))
 		end
 	end
 
@@ -185,44 +220,24 @@ local function expression_function(lx)
 			local name = expectname()
 			expect':'
 			local bind_type = luaexpr()
-			push(t.fields, name)
-			push(t.fields, false) --type slot
-			local type_slot = #t.fields
-			t[#t+1] = function(...)
-				t.fields[type_slot] = bind_type(...) or false
+			add(t.fields, name)
+			local type_slot = add(t.fields, true)
+			t[#t+1] = function()
+				t.fields[type_slot] = bind_type() or false
 			end
 			tk = nextif','
 			if not tk then break end
 		end
 		expectmatch('}', 'struct', line, pos)
 		local bind = bindlist(t)
-		return function(...)
-			return t2.struct(bind(...))
-		end
-	end
-
-	local function type()
-		local bind_type = luaexpr()
-		if nextif'->' then
-			--TODO: this is wrong: operator priority > than that of `and` and `or`
-			--TODO: remove this after implementing extensible operators.
-			local bind_rettype = luaexpr()
-			return function(...)
-				return t2.functype({
-					args_type = bind_type(...),
-					ret_type  = bind_rettype(...),
-				})
-			end
-		else
-			return function(...)
-				return t2.type(bind_type(...))
-			end
+		return function()
+			return mt.struct(bind())
 		end
 	end
 
 	local function ref()
 		if refs then
-			push(refs, expectval'<name>')
+			add(refs, expectval'<name>')
 		else
 			expect'<name>'
 		end
@@ -465,9 +480,10 @@ local function expression_function(lx)
 			local line, pos = line()
 			next()
 			repeat --name[:type],...
-				expectname()
+				local name = expectname()
+				symbol(name, {type = 'var'})
 				if nextif':' then
-					type()
+					f[#f+1] = type()
 				end
 			until not nextif','
 			if nextif'=' then -- =expr,...
@@ -488,6 +504,14 @@ local function expression_function(lx)
 		elseif tk == 'goto' then --goto name
 			next()
 			expectname()
+		elseif tk == '[' then --escape
+			next()
+			local stmt_quote = luaexpr()
+			local body_slot = add(f.body, true)
+			f[#f+1] = function(...)
+				f.body[body_slot] = stmt_quote(...)
+			end
+			expect']'
 		elseif not expr_primary() then --function call or assignment
 			assignment()
 		end
@@ -532,7 +556,7 @@ local function expression_function(lx)
 	end
 end
 
-function t2.lang(lx)
+function mt.lang(lx)
 	return {
 		keywords = {'terra', 'quote', 'struct', 'var'},
 		entrypoints = {
@@ -543,4 +567,4 @@ function t2.lang(lx)
 	}
 end
 
-return t2
+return mt

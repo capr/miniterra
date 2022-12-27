@@ -335,27 +335,35 @@ function M.lexer(arg, filename)
 		end
 	end
 
-	local refs
-
-	function lx.ref(expr)
-		assert(expr)
-		refs[#refs+1] = expr
-		return #refs
-	end
+	local e --current lang expr
 
 	function lx.luaexpr()
+		local e = e
 		local i0 = filepos()
 		expr()
 		local i1 = efp0
 		local s = lx.s:sub(i0, i1-1)
-		local ref_id = lx.ref(s)
-		return function(...)
-			return (select(ref_id, ...))
+		push(e.luaexprs, true)
+		local luaexpr_id = #e.luaexprs
+		e[#e+1] = _('\xc2\xa8(%d,%d,%s);', e.subst_id, luaexpr_id, s)
+		return function()
+			return e.luaexprs[luaexpr_id]
 		end
 	end
 
-	function lx.luastats()
+	function lx.symbol(name, val)
+		push(e.symbols, val)
+		local symbol_id = #e.symbols
+		e[#e+1] = _('local %s=\xc2\xa9(%d,%d);', name, e.subst_id, symbol_id)
+		return val
+	end
 
+	function lx.begin_scope()
+		e[#e+1] = 'do '
+	end
+
+	function lx.end_scope()
+		e[#e+1] = ' end '
 	end
 
 	local function enter_scope()
@@ -383,15 +391,20 @@ function M.lexer(arg, filename)
 	local subst = {} --{subst1,...}
 
 	local function lang_expr(lang, kw, stmt)
-		refs = {}
+		e = {
+			luaexprs = {},
+			symbols = {},
+			stmt = stmt,
+			subst_id = #subst+1,
+		}
 		local i0, line0 = filepos(), line()
-		local cons, names = lang:expression(kw, stmt)
+		e.cons, e.names = lang:expression(kw, stmt)
 		local i1, line1 = efp0, eln0
-		push(subst, {
-			cons = cons, refs = refs, names = names, stmt = stmt,
-			i = i0, len = i1 - i0, lines = line1 - line0,
-		})
-		refs = nil
+		e.i = i0
+		e.len = i1 - i0
+		e.lines = line1 - line0
+		push(subst, e)
+		e = nil
 	end
 
 	--Lua parser --------------------------------------------------------------
@@ -797,10 +810,14 @@ function M.lexer(arg, filename)
 		lx.luastats()
 
 		local s = lx.s
-		local dt = {}
+		local dt = {'local \xc2\xa7,\xc2\xa8,\xc2\xa9=\xc2\xa7,\xc2\xa8,\xc2\xa9;'}
 		local j = 1
 		for ti,t in ipairs(subst) do
 			push(dt, s:sub(j, t.i-1))
+
+			for _,s in ipairs(t) do --emitted Lua code
+				push(dt, s)
+			end
 
 			if t.names and #t.names > 0 then
 				for i,name in ipairs(t.names) do
@@ -810,12 +827,7 @@ function M.lexer(arg, filename)
 				dt[#dt] = '='
 			end
 
-			push(dt, ('§(%d'):format(ti))
-			for i = 1, #t.refs do
-				push(dt, ',')
-				push(dt, t.refs[i])
-			end
-			push(dt, ')')
+			push(dt, ('\xc2\xa7(%d)'):format(ti))
 
 			push(dt, t.stmt and ';' or ' ')
 			for i = 1, t.lines do
@@ -831,8 +843,14 @@ function M.lexer(arg, filename)
 		local func, err = loadstring(s, lx.filename, 't')
 		if not func then return nil, err end
 		_G.import = function() end
-		_G['§'] = function(i, ...)
-			return subst[i].cons(...)
+		_G['\xc2\xa7'] = function(i) --lang expr constructor
+			return subst[i].cons()
+		end
+		_G['\xc2\xa8'] = function(subst_id, luaexpr_id, luaexpr_val) --luaexpr evaluator
+			subst[subst_id].luaexprs[luaexpr_id] = luaexpr_val
+		end
+		_G['\xc2\xa9'] = function(subst_id, symbol_id) --symbol binder
+			return subst[subst_id].symbols[symbol_id]
 		end
 		return func
 	end
