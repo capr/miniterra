@@ -60,33 +60,33 @@ the language is encountered. Consider miniterra:
 
 ```Lua
 local function expression_function(lx) --parser constructor
-	local function bind()
-		... call the bind functions returned by lx.luaexpr() here ...
-		return val_of_name1, ...
-	end
-	return function(self, token, is_statement) --parse function
-		... in here, use lx to:
-			* consume the tokens of this statement or expression
-				* lx.next(), lx.lookahead(), etc.
-			* begin/end local scopes and declare local symbols inside them
-				* lx.begin_scope(), lx.symbol(), lx.end_scope()
-			* parse embedded Lua expressions to be eval'ed later at bind time
-				* lx.luaexpr() -> bind function
-				* the Lua expressions will "see" your language's local symbols
-		... finally, return a bind function and the names of the locals that
-			this expression or statement defines. the bind function must return
-			the values to assign to those names.
-		return bind, {name1, ...}
-	end
+   local function bind()
+      ... call the bind functions returned by lx.luaexpr() here ...
+      return val_of_name1, ...
+   end
+   return function(self, token, is_statement) --parse function
+      ... in here, use lx to:
+         * consume the tokens of this statement or expression
+            * lx.next(), lx.lookahead(), etc.
+         * begin/end local scopes and declare local symbols inside them
+            * lx.begin_scope(), lx.symbol(), lx.end_scope()
+         * parse embedded Lua expressions to be eval'ed later at bind time
+            * lx.luaexpr() -> bind function
+            * the Lua expressions will "see" your language's local symbols
+      ... finally, return a bind function and the names of the locals that
+         this expression or statement defines. the bind function must return
+         the values to assign to those names.
+      return bind, {name1, ...}
+   end
 end
 
 return {
-		keywords = {'terra', 'quote', 'struct', 'var'},
-		entrypoints = {
-			statement = {'terra', 'struct'},
-			expression = {'`'},
-		},
-		expression = expression_function(lx),
+      keywords = {'terra', 'quote', 'struct', 'var'},
+      entrypoints = {
+         statement = {'terra', 'struct'},
+         expression = {'`'},
+      },
+      expression = expression_function(lx),
 }
 ```
 
