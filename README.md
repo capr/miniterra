@@ -61,21 +61,21 @@ the language is encountered. Consider miniterra:
 ```Lua
 local function expression_function(lx) --parser constructor
    local function bind()
-      ... call the bind functions returned by lx.luaexpr() here ...
+      --call the bind functions returned by lx.luaexpr() here
       return val_of_name1, ...
    end
    return function(self, token, is_statement) --parse function
-      ... in here, use lx to:
-         * consume the tokens of this statement or expression
-            * lx.next(), lx.lookahead(), etc.
-         * begin/end local scopes and declare local symbols inside them
-            * lx.begin_scope(), lx.symbol(), lx.end_scope()
-         * parse embedded Lua expressions to be eval'ed later at bind time
-            * lx.luaexpr() -> bind function
-            * the Lua expressions will "see" your language's local symbols
-      ... finally, return a bind function and the names of the locals that
-         this expression or statement defines. the bind function must return
-         the values to assign to those names.
+      --in here, use lx to:
+      -- * consume the tokens of this statement or expression:
+      --    * use lx.next(), lx.lookahead(), etc.
+      -- * begin/end local scopes and declare local symbols inside them:
+      --    * use lx.begin_scope(), lx.symbol(), lx.end_scope()
+      -- * parse embedded Lua expressions to be eval'ed later at bind time:
+      --    * use lx.luaexpr() which returns a bind function.
+      --    * Lua expressions see your language's local symbols.
+      -- finally, return a bind function and the names of the locals that
+      -- this expression or statement defines. the bind function must return
+      -- the values to assign to those names.
       return bind, {name1, ...}
    end
 end
