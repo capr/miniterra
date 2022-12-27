@@ -118,15 +118,15 @@ local function expression_function(lx)
 			--TODO: this is wrong: operator priority > than that of `and` and `or`
 			--TODO: remove this after implementing extensible operators.
 			local bind_rettype = luaexpr()
-			return function(...)
+			return function()
 				return mt.functype({
-					args_type = bind_type(...),
-					ret_type  = bind_rettype(...),
+					args_type = bind_type(),
+					ret_type  = bind_rettype(),
 				})
 			end
 		else
-			return function(...)
-				return mt.type(bind_type(...))
+			return function()
+				return mt.type(bind_type())
 			end
 		end
 	end
@@ -135,20 +135,20 @@ local function expression_function(lx)
 		local bind_args_type = luaexpr()
 		expect'->'
 		local bind_ret_type = luaexpr()
-		return function(...)
+		return function()
 			return mt.func{
 				name = name,
-				args_type = bind_args_type(...),
-				ret_type = bind_ret_type(...),
+				args_type = bind_args_type(),
+				ret_type = bind_ret_type(),
 			}
 		end
 	end
 
 	local function bindlist(t)
-		return function(...)
+		return function()
 			while #t > 0 do
 				local bind = pop(t)
-				bind(...)
+				bind()
 			end
 			return t
 		end
@@ -177,8 +177,8 @@ local function expression_function(lx)
 					local bind_type = luaexpr()
 					add(t.arg_names, name)
 					local type_slot = add(t.args_type, true)
-					t[#t+1] = function(...)
-						t.args_type[type_slot] = bind_type(...) or false
+					t[#t+1] = function()
+						t.args_type[type_slot] = bind_type() or false
 					end
 				elseif tk == '...' then
 					t.vararg = true
@@ -195,8 +195,8 @@ local function expression_function(lx)
 		--return type: [:type]
 		if nextif':' then
 			local bind_ret_type = luaexpr()
-			t[#t+1] = function(...)
-				t.ret_type = bind_ret_type(...)
+			t[#t+1] = function()
+				t.ret_type = bind_ret_type()
 			end
 		end
 
@@ -208,8 +208,8 @@ local function expression_function(lx)
 		end
 		next()
 		local bind = bindlist(t)
-		return function(...)
-			return mt.func(bind(...))
+		return function()
+			return mt.func(bind())
 		end
 	end
 
@@ -508,8 +508,8 @@ local function expression_function(lx)
 			next()
 			local stmt_quote = luaexpr()
 			local body_slot = add(f.body, true)
-			f[#f+1] = function(...)
-				f.body[body_slot] = stmt_quote(...)
+			f[#f+1] = function()
+				f.body[body_slot] = stmt_quote()
 			end
 			expect']'
 		elseif not expr_primary() then --function call or assignment
