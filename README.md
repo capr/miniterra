@@ -1,11 +1,11 @@
 
-## Overview
+# Overview
 
 Miniterra is programming language derived from [Terra](https://terralang.org/).
 
 It differs from Terra in the following ways:
 
-### Language
+## Language
 
 * reintroducing lazy typechecking.
 * reintroducing automatic function overloading.
@@ -16,7 +16,7 @@ It differs from Terra in the following ways:
    * operator `^` does `pow()` like in Lua.
    * operator `xor` was added.
 
-### Runtime
+## Runtime
 
 * can't import C headers directly as there's no C parser.
    * but you can use function prototypes declared with `ffi.cdef`.
@@ -26,7 +26,7 @@ It differs from Terra in the following ways:
    * on the flip side, you don't have to ship a 50 MB binary either,
      just your compiled Terra code (inside or outside your executable).
 
-### Implementation
+## Implementation
 
 Unlike Terra which uses the LLVM C++ API to generate LLVM IR, miniterra
 generates C code which is then compiled with your favorite C compiler (gcc).
@@ -121,7 +121,7 @@ in which you do the escape.
 custom operators (binary and prefix unary), precedence levels and left and
 right associativity for each operator.
 
-### Installing
+# Installing
 
 Binaries are included in the repo for Windows and Linux.
 Build your own for OSX.
@@ -130,7 +130,7 @@ Put the Lua files in your Lua path.
 
 Put the dynamic libraries where your LuaJIT exe is.
 
-### Building
+# Building
 
 The build script is for GCC. Use MSYS2 on Windows.
 For OSX you can build on OSX or cross-compile from Linux.
