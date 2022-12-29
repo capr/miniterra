@@ -94,9 +94,10 @@ local foo = require'foo_mt' --load `foo_mt.mt`
 foo:build()
 ```
 
-This builds `bin/windows/foo.dll`, `bin/linux/libfoo.so` or `bin/osx/libfoo.dylib`
-depending on your OS and generates Lua bindings for it in `foo_h.lua` and `foo.lua`
-so you can use it as:
+This creates either `bin/windows/foo.dll`, `bin/linux/libfoo.so` or `bin/osx/libfoo.dylib`
+depending on your OS and generates Lua bindings for it in `foo_h.lua`.
+From there you can create `foo.lua` manually and further Luaize the
+auto-generated binding, or you can use the binding directly.
 
 ```Lua
 local foo = require'foo'
