@@ -1,12 +1,60 @@
+--[[
 
---Lua lexer in C with extensible Lua parser.
---Written by Cosmin Apreutesei. Public Domain.
+	Lua lexer in C with extensible Lua parser.
+	Written by Cosmin Apreutesei. Public Domain.
+
+	lx.lexer(s|file|read) -> lx
+	lx.free()
+
+PARSING
+	lx.cur() -> s                       current token
+		'if' ...                         keyword from your keywords list
+		'<name>'                         identifier
+		'<eof>'                          end of file
+		'<string>'                       string literal
+		'<number>'                       number literal
+		'<imag>'                         imaginary literal
+		'<int>'                          integer literal
+		'<u32>'                          unsigned 32bit int literal
+		'<i64>'                          64bit signed integer literal
+		'<u64>'                          64bit unsigned integer literal
+		'::'  '=='  '<='  '>='  '~='     multi-char operator. only these are valid.
+		'...'  '..'  '->'  '<<'  '>>'
+		'+'  '-' ...                     single-char token. all non-parsables are single-char tokens!
+	lx.val() -> v                       get the parsed value of current token if it's a literal
+	lx.line -> n                        current line in the file
+	lx.offset -> i                      current offset in the file
+	lx.end_line -> n                    line where current token ends
+	lx.end_offset -> i                  file offset where current token ends
+	lx.next() -> s                      consume token and get next token
+	lx.nextif(s) -> s                   consume token and get next token if it's s
+	lx.lookahead() -> s                 get next token without consuming the current one
+	lx.expect(s) -> s                   consume token and get next token, raise if it's not s
+	lx.expectval(s) -> v, s             get (val(), next()), raise if current token is not s
+	lx.expectmatch(s, opening_tk, line, line_pos) -> s   match closing parens
+	lx.errorexpected(WHAT)              raise "WHAT expected"
+	lx.luaexpr() -> bind() -> v         parse Lua expression; bind() evals it in its scope.
+	lx.name() -> bind() -> v            parse identifier; bind() evals it in its scope.
+	lx.symbol(name, t)                  declare symbol in current scope
+	lx.begin_scope()                    begin inner scope
+	lx.end_scope()                      end scope
+	lx.expression_parser(opt) -> f()    make a custom expression parser
+		opt.unary = 'op1 ...'                 unary operators
+		opt.priority = {'op1 ...', ...}       operator priority
+		opt.right_associative = 'op1 ...'     right-associative operators
+		opt.operand = f() -> v                parse operand and make an AST object for it
+		opt.operation = f(op, v1, [v2]) -> v  make AST object for operation
+
+]]
 
 if not ... then require'lx_test'; return end
 
 local push   = table.insert
 local pop    = table.remove
 local concat = table.concat
+local char   = string.char
+local format = string.format
+local assert = assert
 
 local C = ffi.load'lx'
 local M = {C = C}
@@ -189,7 +237,7 @@ function M.lexer(arg, filename)
 	--this makes lexing 2x slower but simplifies the parsing API.
 	local function token(tk)
 		if tk >= 0 then
-			return string.char(tk)
+			return char(tk)
 		elseif tk == C.TK_NAME then
 			v = ls:string()
 			return keywords[v] and v or '<name>'
@@ -249,7 +297,7 @@ function M.lexer(arg, filename)
 
 	local function error(msg) --stub
 		local line, pos = line()
-		_G.error(string.format('%s:%d:%d: %s', filename or '@string', line, pos, msg), 0)
+		_G.error(format('%s:%d:%d: %s', filename or '@string', line, pos, msg), 0)
 	end
 
 	local function errorexpected(what)
@@ -278,7 +326,7 @@ function M.lexer(arg, filename)
 			if line() == ln then
 				errorexpected(tostring(tk1))
 			else
-				error(string.format('%s expected (to close %s at %d:%d)',
+				error(format('%s expected (to close %s at %d:%d)',
 					tostring(tk1), tostring(openingtk), ln, lp))
 			end
 		end
@@ -351,11 +399,25 @@ function M.lexer(arg, filename)
 		end
 	end
 
+	function lx.name()
+		local e = e
+		local s = val()
+		if tk ~= '<name>' then
+			errorexpected(tk)
+		end
+		next()
+		push(e.luaexprs, true)
+		local luaexpr_id = #e.luaexprs
+		e[#e+1] = _('\xc2\xa8(%d,%d,%s);', e.subst_id, luaexpr_id, s)
+		return function()
+			return e.luaexprs[luaexpr_id]
+		end
+	end
+
 	function lx.symbol(name, val)
 		push(e.symbols, val)
 		local symbol_id = #e.symbols
 		e[#e+1] = _('local %s=\xc2\xa9(%d,%d);', name, e.subst_id, symbol_id)
-		return val
 	end
 
 	function lx.begin_scope()
@@ -414,44 +476,7 @@ function M.lexer(arg, filename)
 			or tk == 'until' or tk == '<eof>'
 	end
 
-	local unary_priority = {
-		['not'] = 7 * 2,
-		['-'  ] = 7 * 2,
-		['#'  ] = 7 * 2,
-	}
-
-	local binary_priority = {
-		['^'  ] = 8 * 2,
-
-		--unary priority: 7 * 2
-
-		['*'  ] = 6 * 2,
-		['/'  ] = 6 * 2,
-		['%'  ] = 6 * 2,
-
-		['+'  ] = 5 * 2,
-		['-'  ] = 5 * 2,
-
-		['..' ] = 4 * 2,
-
-		['==' ] = 3 * 2,
-		['~=' ] = 3 * 2,
-		['<'  ] = 3 * 2,
-		['<=' ] = 3 * 2,
-		['>'  ] = 3 * 2,
-		['>=' ] = 3 * 2,
-
-		['and'] = 2 * 2,
-
-		['or' ] = 1 * 2,
-	}
-
-	local right_associative = {
-		['^' ] = true,
-		['..'] = true,
-	}
-
-	local function params() --(name,...[,...])
+	local function body(line, pos) --(name,...[,...]) block end
 		expect'('
 		if tk ~= ')' then
 			repeat
@@ -466,10 +491,6 @@ function M.lexer(arg, filename)
 			until not nextif','
 		end
 		expect')'
-	end
-
-	local function body(line, pos) --(params) block end
-		params()
 		block()
 		if tk ~= 'end' then
 			expectmatch('end', 'function', line, pos)
@@ -545,7 +566,7 @@ function M.lexer(arg, filename)
 		elseif tk == '<name>' then
 			next()
 		else
-			error'unexpected symbol'
+			error('unexpected symbol '..tk)
 		end
 		while true do --parse multiple expression suffixes.
 			if tk == '.' then
@@ -591,28 +612,80 @@ function M.lexer(arg, filename)
 		end
 	end
 
-	--parse binary expressions with priority higher than the limit.
-	local function expr_binop(limit)
-		local pri = unary_priority[tk]
-		if pri then --unary operator
-			next()
-			expr_binop(pri)
-		else
-			expr_simple()
+	function lx.expression_parser(opt)
+
+		local unary_priority  = {} --{op->pri}
+		local binary_priority = {} --{op->pri}
+		for op in opt.unary:gmatch'%S+' do
+			unary_priority[op] = true
 		end
-		local pri = binary_priority[tk]
-		while pri and pri > limit do
-			next()
-			--parse binary expression with higher priority.
-			local op = expr_binop(pri - (right_associative[tk] and 1 or 0))
-			pri = binary_priority[op]
+		for pri, ops in ipairs(opt.priority) do
+			for op in ops:gmatch'%S+' do
+				local t = unary_priority[op] and unary_priority or binary_priority
+				t[op] = pri * 2
+			end
 		end
-		return tk --return unconsumed binary operator (if any).
+		local right_associative = {} --{op->true}
+		for op in opt.right_associative:gmatch'%S+' do
+			right_associative[op] = true
+		end
+		local operand   = opt.operand
+		local operation = opt.operation
+
+		--parse binary expression with priority higher than the limit.
+		local function expr_binop(limit)
+			if tk == '(' then
+				local line, pos = line()
+				next()
+				local v = expr_binop(limit)
+				expectmatch(')', '(', line, pos)
+				return v
+			end
+			local op = tk
+			local pri = unary_priority[op]
+			local v
+			if pri then --unary operator
+				next()
+				v = expr_binop(pri)
+				v = operation(op, v)
+			else
+				v = operand()
+			end
+			while true do
+				local op = tk
+				local pri = binary_priority[op]
+				if not pri or pri <= limit then
+					break
+				end
+				next()
+				--parse binary expression with higher priority.
+				local rhs = expr_binop(pri - (right_associative[op] and 1 or 0))
+				v = operation(op, v, rhs)
+			end
+			return v
+		end
+
+		return function()
+			return expr_binop(0) --priority 0: parse whole expression.
+		end
 	end
 
-	function expr() --parse expression.
-		expr_binop(0) --priority 0: parse whole expression.
-	end
+	expr = lx.expression_parser{
+		unary = 'not - #',
+		priority = {
+			'or',
+			'and',
+			'> >= < <= ~= ==',
+			'..',
+			'- +',
+			'% / *',
+			'not - #',
+			'^',
+		},
+		right_associative = '^ ..',
+		operand = expr_simple,
+		operation = noop,
+	}
 
 	local function assignment() --expr_primary,... = expr,...
 		if nextif',' then --collect LHS list and recurse upwards.
@@ -839,7 +912,7 @@ function M.lexer(arg, filename)
 		push(dt, s:sub(j))
 
 		local s = concat(dt)
-		print(s)
+		--print(s)
 		local func, err = loadstring(s, lx.filename, 't')
 		if not func then return nil, err end
 		_G.import = function() end

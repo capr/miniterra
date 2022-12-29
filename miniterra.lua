@@ -1,12 +1,15 @@
 --go@ x:\sdk\bin\windows\luajit.exe miniterra_test.lua
 
-if not ... then require'miniterra_test'; return end
-
 require'glue'
 
+if ... ~= 'miniterra' then --cli
+	print'Usage: miniterra FILE.mt'
+	exit(1)
+end
+
 local
-	push, pop, concat, tuple, unpack =
-	push, pop, concat, tuple, unpack
+	type, push, pop, concat, tuple, unpack =
+	type, push, pop, concat, tuple, unpack
 
 local mt = {}
 
@@ -52,10 +55,12 @@ local function expression_function(lx)
 	local expectmatch = lx.expectmatch
 	local line = lx.line
 	local luaexpr = lx.luaexpr
+	local name = lx.name
 	local luastats = lx.luastats
 	local symbol = lx.symbol
 	local begin_scope = lx.begin_scope
 	local end_scope = lx.end_scope
+	local val = lx.val
 
 	local function isend() --check for end of block
 		local tk = cur()
@@ -63,56 +68,13 @@ local function expression_function(lx)
 			or tk == 'until' or tk == '<eof>'
 	end
 
-	local unary_priority = {
-		['not'] = 9 * 2,
-		['-'  ] = 9 * 2,
-		['#'  ] = 9 * 2,
-	}
-
-	local binary_priority = {
-		['^'  ] = 10 * 2,
-
-		--unary priority: 9 * 2
-
-		['*'  ] =  8 * 2,
-		['/'  ] =  8 * 2,
-		['%'  ] =  8 * 2,
-
-		['+'  ] =  7 * 2,
-		['-'  ] =  7 * 2,
-
-		['..' ] =  6 * 2,
-
-		['<<' ] =  5 * 2,
-		['>>' ] =  5 * 2,
-		['xor'] =  5 * 2,
-
-		['==' ] =  4 * 2,
-		['~=' ] =  4 * 2,
-		['<'  ] =  4 * 2,
-		['<=' ] =  4 * 2,
-		['>'  ] =  4 * 2,
-		['>=' ] =  4 * 2,
-
-		['->' ] =  3 * 2,
-
-		['and'] =  2 * 2,
-
-		['or' ] =  1 * 2,
-	}
-
-	local right_associative = {
-		['^' ] = true,
-		['..'] = true,
-	}
-
 	local function expectname()
 		return expectval'<name>'
 	end
 
-	local block -- fw. decl.
+	local expr, block -- fw. decl.
 
-	local function type()
+	local function terratype()
 		local bind_type = luaexpr()
 		if nextif'->' then
 			--TODO: this is wrong: operator priority > than that of `and` and `or`
@@ -126,7 +88,8 @@ local function expression_function(lx)
 			end
 		else
 			return function()
-				return mt.type(bind_type())
+				local t = bind_type()
+				return mt.type(t)
 			end
 		end
 	end
@@ -144,16 +107,6 @@ local function expression_function(lx)
 		end
 	end
 
-	local function bindlist(t)
-		return function()
-			while #t > 0 do
-				local bind = pop(t)
-				bind()
-			end
-			return t
-		end
-	end
-
 	local function enter_scope()
 		begin_scope()
 	end
@@ -162,26 +115,33 @@ local function expression_function(lx)
 		end_scope()
 	end
 
-	local f --current function object
+	local cur_block
+
+	local function bind_all(t)
+		for k,v in pairs(t) do
+			if type(v) == 'function' then
+				t[k] = v()
+			elseif type(v) == 'table' then
+				bind_all(v)
+			end
+		end
+	end
 
 	local function funcdef(name, line, pos)
 
 		--params: (name:type,...[,...])
 		local tk = expect'('
-		local t = {name = name, arg_names = {}, args_type = {}, body = {}}
+		local f = {name = name, arg_names = {}, args_type = {}}
 		if tk ~= ')' then
 			repeat
 				if tk == '<name>' then
 					local name = expectname()
 					expect':'
 					local bind_type = luaexpr()
-					add(t.arg_names, name)
-					local type_slot = add(t.args_type, true)
-					t[#t+1] = function()
-						t.args_type[type_slot] = bind_type() or false
-					end
+					add(f.arg_names, name)
+					add(f.args_type, bind_type)
 				elseif tk == '...' then
-					t.vararg = true
+					f.vararg = true
 					next()
 					break
 				else
@@ -194,52 +154,39 @@ local function expression_function(lx)
 
 		--return type: [:type]
 		if nextif':' then
-			local bind_ret_type = luaexpr()
-			t[#t+1] = function()
-				t.ret_type = bind_ret_type()
-			end
+			f.ret_type = luaexpr()
 		end
 
 		--body
-		f = t
+		cur_block = f
 		block()
 		if cur() ~= 'end' then
 			expectmatch('end', 'terra', line, pos)
 		end
 		next()
-		local bind = bindlist(t)
 		return function()
-			return mt.func(bind())
+			bind_all(f)
+			return mt.func(f)
 		end
 	end
 
 	local function struct(name, line, pos)
+		local bind = noop
 		local tk = expect'{'
 		local t = {name = name, fields = {}}
 		while tk ~= '}' do
 			local name = expectname()
 			expect':'
-			local bind_type = luaexpr()
+			local bind_type = terratype()
 			add(t.fields, name)
-			local type_slot = add(t.fields, true)
-			t[#t+1] = function()
-				t.fields[type_slot] = bind_type() or false
-			end
+			add(t.fields, bind_type)
 			tk = nextif','
 			if not tk then break end
 		end
 		expectmatch('}', 'struct', line, pos)
-		local bind = bindlist(t)
 		return function()
-			return mt.struct(bind())
-		end
-	end
-
-	local function ref()
-		if refs then
-			add(refs, expectval'<name>')
-		else
-			expect'<name>'
+			bind_all(t)
+			return mt.struct(t)
 		end
 	end
 
@@ -254,7 +201,7 @@ local function expression_function(lx)
 		expect']'
 	end
 
-	local function expr_table() --{[expr]|name=expr,;...}
+	local function expr_struct_initializer() --{[expr]|name=expr,;...}
 		local line, pos = line()
 		local tk = expect'{'
 		while tk ~= '}' do
@@ -272,14 +219,14 @@ local function expression_function(lx)
 		expectmatch('}', '{', line, pos)
 	end
 
-	local function expr_list() --expr,...
-		expr()
+	local function expr_list(t) --expr,...
+		expr(t)
 		while nextif',' do
-			expr()
+			expr(t)
 		end
 	end
 
-	local function args() --(expr,...)|{table}|string
+	local function args() --(expr,...)|{struct_initializer}|string
 		local tk = cur()
 		if tk == '(' then
 			local line, pos = line()
@@ -290,7 +237,7 @@ local function expression_function(lx)
 			end
 			expectmatch(')', '(', line, pos)
 		elseif tk == '{' then
-			expr_table()
+			expr_struct_initializer()
 		elseif tk == '<string>' then
 			next()
 		else
@@ -302,15 +249,16 @@ local function expression_function(lx)
 		local iscall
 		--parse prefix expression.
 		local tk = cur()
+		local t
 		if tk == '(' then
 			local line, pos = line()
 			next()
-			expr()
+			t = expr()
 			expectmatch(')', '(', line, pos)
 		elseif tk == '<name>' then
-			ref()
+			t = {type = 'name', name = val(), val = name()}
 		else
-			error'unexpected symbol'
+			error('unexpected symbol '..tk)
 		end
 		local tk = cur()
 		while true do --parse multiple expression suffixes.
@@ -333,45 +281,45 @@ local function expression_function(lx)
 			end
 			tk = cur()
 		end
-		return iscall
+		return t, iscall
 	end
 
-	local function expr_simple() --literal|...|{table}|expr_primary
+	local function expr_simple() --literal|...|{struct_initializer}|expr_primary
 		local tk = cur()
 		if tk == '<number>' or tk == '<imag>' or tk == '<int>' or tk == '<u32>'
 			or tk == '<i64>' or tk == '<u64>' or tk == '<string>' or tk == 'nil'
 			or tk == 'true' or tk == 'false' or tk == '...'
 		then --literal
+			local t = {type = 'literal', val = val()}
 			next()
-		elseif tk == '{' then --{table}
-			expr_table()
+			return t
+		elseif tk == '{' then --{struct_initializer}
+			return expr_struct_initializer()
 		else
-			expr_primary()
+			return expr_primary()
 		end
 	end
 
-	--parse binary expressions with priority higher than the limit.
-	local function expr_binop(limit)
-		local pri = unary_priority[cur()]
-		if pri then --unary operator
-			next()
-			expr_binop(pri)
-		else
-			expr_simple()
-		end
-		local pri = binary_priority[tk]
-		while pri and pri > limit do
-			next()
-			--parse binary expression with higher priority.
-			local op = expr_binop(pri - (right_associative[tk] and 1 or 0))
-			pri = binary_priority[op]
-		end
-		return tk --return unconsumed binary operator (if any).
-	end
-
-	function expr() --parse expression.
-		expr_binop(0) --priority 0: parse whole expression.
-	end
+	expr = lx.expression_parser{
+		unary = 'not - #',
+		priority = {
+			'or',
+			'and',
+			'->',
+			'> >= < <= ~= ==',
+			'>> << xor',
+			'..',
+			'- +',
+			'% / *',
+			'not - #',
+			'^',
+		},
+		right_associative = '^ ..',
+		operand = expr_simple,
+		operation = function(op, v1, v2)
+			return {type = 'op', op = op, v1 = v1, v2 = v2}
+		end,
+	}
 
 	local function assignment() --expr_primary,... = expr,...
 		if nextif',' then --collect LHS list and recurse upwards.
@@ -405,10 +353,16 @@ local function expression_function(lx)
 		local tk = cur()
 		if tk == 'if' then --if expr then block [elseif expr then block]... [else block] end
 			local line, pos = line()
+			local stmt = {type = 'if'}
 			next()
-			expr()
+			stmt.cond = expr()
 			expect'then'
+			local outer_block = cur_block
+			add(cur_block, stmt)
+			cur_block = stmt
 			block()
+			cur_block = outer_block
+			tk = cur()
 			while tk == 'elseif' do --elseif expr then block...
 				next()
 				expr()
@@ -481,13 +435,16 @@ local function expression_function(lx)
 			next()
 			repeat --name[:type],...
 				local name = expectname()
-				symbol(name, {type = 'var'})
+				local var = {type = 'var'}
+				add(cur_block, var)
+				symbol(name, var)
 				if nextif':' then
-					f[#f+1] = type()
+					var.var_type = luaexpr()
 				end
 			until not nextif','
 			if nextif'=' then -- =expr,...
-				expr_list()
+				local exprs = {}
+				expr_list(exprs)
 			end
 		elseif tk == 'return' then --return [expr,...]
 			tk = next()
@@ -506,14 +463,14 @@ local function expression_function(lx)
 			expectname()
 		elseif tk == '[' then --escape
 			next()
-			local stmt_quote = luaexpr()
-			local body_slot = add(f.body, true)
-			f[#f+1] = function()
-				f.body[body_slot] = stmt_quote()
-			end
+			local stmt = luaexpr()
+			add(cur_block, stmt)
 			expect']'
-		elseif not expr_primary() then --function call or assignment
-			assignment()
+		else
+			local t, iscall = expr_primary()
+			if not iscall then --function call or assignment
+				assignment()
+			end
 		end
 		return false
 	end
@@ -551,6 +508,7 @@ local function expression_function(lx)
 			end
 			return bind, name and {name}
 		elseif tk == 'quote' then
+			--
 		end
 		assert(false)
 	end
@@ -565,6 +523,26 @@ function mt.lang(lx)
 		},
 		expression = expression_function(lx),
 	}
+end
+
+function mt.format_expr(e)
+	local t = {}
+	local add = table.insert
+	local function format(e)
+		if e.type == 'op' then
+			add(t, '(')
+			if e.v1 then format(e.v1); add(t, ' ') end
+			add(t, e.op)
+			if e.v2 then add(t, ' '); format(e.v2) end
+			add(t, ')')
+		elseif e.type == 'name' then
+			add(t, e.name)
+		elseif e.type == 'literal' then
+			add(t, e.val)
+		end
+	end
+	format(e)
+	return concat(t)
 end
 
 return mt

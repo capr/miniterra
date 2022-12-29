@@ -13,18 +13,18 @@ It differs from Terra in the following ways:
 * return-type inference works with all of the above.
 * variable shadowing is allowed like in Lua.
 * operator precedence was changed to be the same as in Lua.
-	* operator `^` does `pow()` like in Lua.
-	* operator `xor` was added.
+   * operator `^` does `pow()` like in Lua.
+   * operator `xor` was added.
 
 ### Runtime
 
 * can't import C headers directly as there's no C parser.
-	* but you can use function prototypes declared with `ffi.cdef`.
+   * but you can use function prototypes declared with `ffi.cdef`.
 * can't call Terra code from Lua as there's no JIT compiler.
-	* but ffi cdefs and metatypes can be auto-generated for Terra
-	  functions so you can call into your Terra binaries from Lua via ffi.
-	* on the flip side, you don't have to ship a 50 MB binary either,
-	  just your compiled Terra code (inside or outside your executable).
+   * but ffi cdefs and metatypes can be auto-generated for Terra
+     functions so you can call into your Terra binaries from Lua via ffi.
+   * on the flip side, you don't have to ship a 50 MB binary either,
+     just your compiled Terra code (inside or outside your executable).
 
 ### Implementation
 
@@ -53,41 +53,49 @@ scope. You can import multiple languages in the same Lua scope as long as
 each one uses different starting keywords.
 
 A language must be implemented in a Lua module with the same name. A language
-module must contain the keywords that the language defines, the entrypoints
-for statements and for expressions, and a parser constructor that must return
-a parse function that will be called whenever a statement or expression of
-the language is encountered. Consider miniterra:
+module must contain a function called `lang` that returns the keywords that
+the language defines, the entrypoints for statements and for expressions,
+and a parser constructor that must return a parse function that will be called
+whenever a statement or expression of the language is encountered.
+
+Example:
 
 ```Lua
+local mt = {} --miniterra module
+
 local function expression_function(lx) --parser constructor
    local function bind()
-      --call the bind functions returned by lx.luaexpr() here
+      -- call the bind functions returned by lx.luaexpr() here.
       return val_of_name1, ...
    end
    return function(self, token, is_statement) --parse function
       --in here, use lx to:
       -- * consume the tokens of this statement or expression:
       --    * use lx.next(), lx.lookahead(), etc.
-      -- * begin/end local scopes and declare local symbols inside them:
+      -- * create local scopes and declare local symbols inside them:
       --    * use lx.begin_scope(), lx.symbol(), lx.end_scope()
       -- * parse embedded Lua expressions to be eval'ed later at bind time:
       --    * use lx.luaexpr() which returns a bind function.
-      --    * Lua expressions see your language's local symbols.
+      --    * Lua expressions will see your language's local symbols.
       -- finally, return a bind function and the names of the locals that
-      -- this expression or statement defines. the bind function must return
-      -- the values to assign to those names.
+      -- this expression or statement defines. the bind function will be
+      -- called later and must return the values to assign to those names.
       return bind, {name1, ...}
    end
 end
 
-return {
+function mt.lang(lx)
+   return {
       keywords = {'terra', 'quote', 'struct', 'var'},
       entrypoints = {
          statement = {'terra', 'struct'},
          expression = {'`'},
       },
       expression = expression_function(lx),
-}
+   }
+end
+
+return mt
 ```
 
 The parser constructor receives an `lx` object to be used by the parse
@@ -104,4 +112,29 @@ and declare symbols within those scopes. Embedded Lua expressions will then
 be able to reference those symbols as well as any locals from the outer Lua
 scope. Miniterra uses this feature of `lx` to implement escapes that can see
 both Terra vars from the surrounding Terra scope as well as Lua vars from the
-outer Lua scope.
+outer Lua scope. You can use this feature in your own embedded language if
+your language is lexically scoped and you want to implement escaping to Lua
+in your language with the ability to access symbols from the lexical scope
+in which you do the escape.
+
+### Installing
+
+Binaries are included in the repo for Windows and Linux.
+Build your own for OSX.
+
+Put the Lua files in your Lua path.
+
+Put the dynamic libraries where your LuaJIT exe is.
+
+### Building
+
+The build script is for GCC. Use MSYS2 on Windows.
+For OSX you can build on OSX or cross-compile from Linux.
+
+The build command is:
+
+```
+sh build.sh
+```
+
+The result is static and dynamic libraries in `bin/OS`.
