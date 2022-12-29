@@ -1,5 +1,5 @@
 
-# Overview
+# Miniterra
 
 Miniterra is programming language derived from [Terra](https://terralang.org/)
 that compiles to C. It works on Windows, Linux and Mac with LuaJIT 2.1 and GCC.
