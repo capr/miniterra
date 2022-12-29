@@ -1,6 +1,17 @@
 --go@ x:\sdk\bin\windows\luajit.exe miniterra_test.lua
+--[[
+
+	Miniterra: a Terra-like language with a C backend.
+	Written by Cosmin Apreutesei. Public Domain.
+
+	local mt = require'miniterra'
+	package.miniterrapath = '...'      searchpath for .mt files
+	require'foo' --loads `foo.mt`
+
+]]
 
 require'glue'
+local lx = require'lx'
 
 if ... ~= 'miniterra' then --cli
 	print'Usage: miniterra FILE.mt'
@@ -11,7 +22,7 @@ local
 	type, push, pop, concat, tuple, unpack =
 	type, push, pop, concat, tuple, unpack
 
-local mt = {}
+local mt = {} --miniterra module
 
 function mt.struct(t)
 	t.type = 'type'
@@ -544,5 +555,21 @@ function mt.format_expr(e)
 	format(e)
 	return concat(t)
 end
+
+push(package.loaders, function(name)
+	local paths = package.miniterrapath or package.path:gsub('%.lua', '.mt')
+	local path, err = package.searchpath(name, paths)
+	if not path then return nil, err end
+	return function()
+		local f = assert(io.open(path, 'r'))
+		local s, err = f:read'*a'
+		f:close()
+		assert(s, err)
+		local lx = lx.lexer(s, path)
+		lx.import'miniterra'
+		local chunk = lx.load()
+		return chunk()
+	end
+end)
 
 return mt

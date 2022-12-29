@@ -3,10 +3,15 @@
 	Lua lexer in C with extensible Lua parser.
 	Written by Cosmin Apreutesei. Public Domain.
 
-	lx.lexer(s|file|read) -> lx
-	lx.free()
-
-PARSING
+LX STATE
+	lx.lexer(s|file|read) -> lx         create an lx state for a LuaX file
+	lx.free()                           free the lx state
+	lx.load() -> chunk                  load the LuaX file
+LOADING EMBEDDED LANGUAGES
+	lx.import(lang_name)                import a language in current scope
+	lx.loadlang = f(lang_name)          override the language module loader
+	package.luaxpath = '...'            set searchpath for .luax files
+TOKEN PARSING
 	lx.cur() -> s                       current token
 		'if' ...                         keyword from your keywords list
 		'<name>'                         identifier
@@ -33,11 +38,14 @@ PARSING
 	lx.expectval(s) -> v, s             get (val(), next()), raise if current token is not s
 	lx.expectmatch(s, opening_tk, line, line_pos) -> s   match closing parens
 	lx.errorexpected(WHAT)              raise "WHAT expected"
+NAME BINDING
 	lx.luaexpr() -> bind() -> v         parse Lua expression; bind() evals it in its scope.
 	lx.name() -> bind() -> v            parse identifier; bind() evals it in its scope.
+SCOPED SYMBOLS
 	lx.symbol(name, t)                  declare symbol in current scope
 	lx.begin_scope()                    begin inner scope
 	lx.end_scope()                      end scope
+EXPRESSION PARSING
 	lx.expression_parser(opt) -> f()    make a custom expression parser
 		opt.unary = 'op1 ...'                 unary operators
 		opt.priority = {'op1 ...', ...}       operator priority
@@ -273,7 +281,7 @@ function M.lexer(arg, filename)
 		tk = tk1 or token(ls:next())
 		tk1, v, ln, eln, lp, fp, efp = nil
 		ntk = ntk + 1
-		--print(tk, filepos(), line())
+		--print(tk, filepos(), line()) --see all tokens
 		return tk
 	end
 
@@ -356,17 +364,17 @@ function M.lexer(arg, filename)
 		entrypoints[kind] = getparent(entrypoints[kind])
 	end
 
-	function lx.import(name) --stub
+	function lx.loadlang(name) --stub
 		return require(name).lang(lx)
 	end
 
 	local langs = {}
 
-	local function import(lang_name)
+	function lx.import(lang_name)
 		if imported[lang_name] then return end --already in scope
 		local lang = langs[lang_name]
 		if not lang then
-			lang = assert(lx.import(lang_name))
+			lang = assert(lx.loadlang(lang_name))
 			langs[lang_name] = lang
 		end
 		push(lang_stack, lang)
@@ -829,7 +837,7 @@ function M.lexer(arg, filename)
 			if tk ~= '<string>' then
 				errorexpected'<string>'
 			end
-			import(ls:string())
+			lx.import(ls:string())
 			next() --calling next() after import() which alters the keywords table.
 		else
 			local lang = entrypoints.statement[tk]
@@ -912,7 +920,7 @@ function M.lexer(arg, filename)
 		push(dt, s:sub(j))
 
 		local s = concat(dt)
-		--print(s)
+		--print(s) --see the whole metaprogram
 		local func, err = loadstring(s, lx.filename, 't')
 		if not func then return nil, err end
 		_G.import = function() end
@@ -931,15 +939,15 @@ function M.lexer(arg, filename)
 	return lx
 end
 
-package.luaxpath = package.luaxpath or package.path:gsub('%.lua', '.luax')
-
 push(package.loaders, function(name)
-	local path, err = package.searchpath(name, package.luaxpath)
+	local paths = package.luaxpath or package.path:gsub('%.lua', '.luax')
+	local path, err = package.searchpath(name, paths)
 	if not path then return nil, err end
 	return function()
 		local f = assert(io.open(path, 'r'))
-		local s = assert(f:read'*a')
+		local s, err = f:read'*a'
 		f:close()
+		assert(s, err)
 		local lx = M.lexer(s, path)
 		local chunk = lx.load()
 		return chunk()
