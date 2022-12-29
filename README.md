@@ -135,13 +135,15 @@ generates C code which is then compiled with your favorite C compiler (gcc).
 While Terra is around 4 KLOC of C++ that leverages LLVM and STL, miniterra
 is written in Lua, based on a Lua lexer and parser library called `lx`.
 
+## Miniterra as an embedded language
+
 `lx` is a standalone library which allows embedding other languages inside
 Lua, another [idea from Terra](https://terralang.org/api.html#embedding-new-languages-inside-lua).
 Miniterra is implemented as an embedded language based on this library.
 You can use `lx` to implement your own embedded language that has nothing
 to do with Terra as long as its syntax is made only of Lua/Terra lexical
-units and there's a clear set of keywords that mark the beginning of
-a statement or expression in the language.
+units and there's a clear set of keywords or tokens that mark the beginning
+of a statement or expression in the language.
 
 `lx` is made of two parts: a tokenizer which was taken from LuaJIT and
 amounts to 1 KLOC of straightforward C, and a Lua parser written in Lua
@@ -160,7 +162,7 @@ the language defines, the entrypoints for statements and for expressions,
 and a parser constructor that must return a parse function that will be called
 whenever a statement or expression of the language is encountered.
 
-Example:
+Take miniterra as an example:
 
 ```Lua
 local mt = {} --miniterra module
@@ -220,5 +222,22 @@ want to implement escaping to Lua in it with the ability to access symbols
 from the lexical scope of the escape.
 
 `lx` also contains an infix expression parser generator on which you can
-specify operators (binary and prefix-unary), precedence levels and associativity.
+specify operators (binary and prefix-unary), precedence levels and
+associativity, so you don't have to roll your own.
+
+## Miniterra compilation stages
+
+1. *Lexing* - breaks text into a stream of tokens. Literals are parsed on demand.
+   Keywords are separated from other names. Comments are skipped.
+2. *Parsing* - consumes tokens and generates AST with binding slots in it.
+   Checks syntax. Parses expressions using operator precedence rules.
+   The input Lua code is patched such that embedded-language code is removed
+   and replaced with Lua code meant to resolve names and embedded Lua expressions.
+3. *Binding* - fills the binding slots in the AST by running the patched Lua
+   code which resolves names and embedded Lua expressions to either Terra
+   symbols or Lua values.
+4. *Typechecking* - typechecks assignments, operations and call args. Infers
+   types, selects overload variants.
+5. *Code gen* - generates C code, headers, and ffi bindings.
+6. *Build* - builds the generated C code.
 
