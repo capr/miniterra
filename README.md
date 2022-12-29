@@ -105,8 +105,8 @@ this is a statement or an expression. The parse function must consume all the
 tokens of a particular statement/expression using the `lx` object which
 contains all the necessary functions for that.
 
-The `lx` object can also be used to parse and eval embedded Lua expressions
-that can appear inside your embedded language, if your language supports such
+`lx` can also be used to parse and eval embedded Lua expressions that can
+appear inside your embedded language, if your language supports such
 a feature. In addition, you can tell `lx` to create nested lexical scopes
 and declare symbols within those scopes. Embedded Lua expressions will then
 be able to reference those symbols as well as any locals from the outer Lua
@@ -116,6 +116,10 @@ outer Lua scope. You can use this feature in your own embedded language if
 your language is lexically scoped and you want to implement escaping to Lua
 in your language with the ability to access symbols from the lexical scope
 in which you do the escape.
+
+`lx` also contains an infix expression parser generator that supports
+custom operators (binary and prefix unary), precedence levels and left and
+right associativity for each operator.
 
 ### Installing
 
