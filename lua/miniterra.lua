@@ -1,7 +1,7 @@
 --go@ x:\sdk\bin\windows\luajit.exe ..\tests\miniterra_test.lua
 --[[
 
-	Miniterra: a Terra-like language with a C backend.
+	Miniterra: a Terra dialect with a C backend.
 	Written by Cosmin Apreutesei. Public Domain.
 
 	local mt = require'miniterra'

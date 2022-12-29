@@ -2,7 +2,7 @@
 # Overview
 
 Miniterra is programming language derived from [Terra](https://terralang.org/)
-that compiles to C. It works on Windows, Mac and Linux with LuaJIT 2.1 and GCC.
+that compiles to C. It works on Windows, Linux and Mac with LuaJIT 2.1 and GCC.
 
 It differs from Terra in the following ways:
 
@@ -11,7 +11,7 @@ It differs from Terra in the following ways:
 * reintroducing lazy typechecking, which unlocks some meta-programming use cases.
 * using Lua's scoping rules, which allows variable shadowing.
 * reintroducing automatic function overloading.
-* operator precedence was changed to be the same as in Lua.
+* operator precedence is the same as in Lua.
 * operator `^` does `pow()` like in Lua.
 * operator `xor` was added.
 * different semantics for `__for`.
@@ -22,7 +22,7 @@ It differs from Terra in the following ways:
 ## Runtime
 
 * can't import unsanitized C headers directly as there's no full-spec C parser.
-  * but you can use `ffi.cdef` headers.
+  * but you can use `ffi.cdef` headers and get a 10x speed-up over clang as a bonus.
 * can't call Terra code from Lua as there's no JIT compiler.
   * but LuaJIT ffi bindings (cdefs and metatypes) can be auto-generated for
     Terra functions so you can call into your Terra binaries from Lua directly.
