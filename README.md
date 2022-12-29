@@ -227,17 +227,17 @@ associativity, so you don't have to roll your own.
 
 ## Miniterra compilation stages
 
-1. *Lexing* - breaks text into a stream of tokens. Literals are parsed on demand.
+1. **Lexing** - breaks text into a stream of tokens. Literals are parsed on demand.
    Keywords are separated from other names. Comments are skipped.
-2. *Parsing* - consumes tokens and generates AST with binding slots in it.
+2. **Parsing** - consumes tokens and generates AST with binding slots in it.
    Checks syntax. Parses expressions using operator precedence rules.
    The input Lua code is patched such that embedded-language code is removed
    and replaced with Lua code meant to resolve names and embedded Lua expressions.
-3. *Binding* - fills the binding slots in the AST by running the patched Lua
+3. **Binding** - fills the binding slots in the AST by running the patched Lua
    code which resolves names and embedded Lua expressions to either Terra
    symbols or Lua values.
-4. *Typechecking* - typechecks assignments, operations and call args. Infers
+4. **Typechecking** - typechecks assignments, operations and call args. Infers
    types, selects overload variants.
-5. *Code gen* - generates C code, headers, and ffi bindings.
-6. *Build* - builds the generated C code.
+5. **Code gen** - generates C code, headers, and ffi bindings.
+6. **Build** - builds the generated C code.
 
