@@ -55,11 +55,55 @@ Put the dynamic libs from `bin/OS` where your LuaJIT exe is.
 
 # Using
 
+`foo_mt.mt` contains Terra code in Miniterra dialect:
+
+```Lua
+local foo = {}
+
+struct Foo {
+   ...
+}
+
+terra new()
+   return malloc(sizeof(Foo))
+end
+
+terra Foo:free()
+   free(self)
+end
+
+terra Foo:bar()
+   ...
+end
+
+function foo:build()
+   local lib = miniterra.lib'foo'
+   lib:add(new)
+   lib:add(Foo)
+   lib:build()
+end
+
+return foo
+```
+
+`foo_build.lua` loads Miniterra and builds `foo_mt`:
+
 ```Lua
 require'miniterra'
-local foo = require'foo' --load `foo.mt` which declares some Terra functions
-foo.f:compile()
+local foo = require'foo_mt' --load `foo_mt.mt`
+foo:build()
+```
 
+This builds `bin/windows/foo.dll`, `bin/linux/libfoo.so` or `bin/osx/libfoo.dylib`
+depending on your OS and generates Lua bindings for it in `foo_h.lua` and `foo.lua`
+so you can use it as:
+
+```Lua
+local foo = require'foo'
+
+local foo1 = foo.new()
+foo1:bar()
+foo1:free()
 ```
 
 # Standard library
@@ -83,7 +127,7 @@ Miniterra comes with a set of basic libraries to get you started:
 | [miniterra.random        ](lua/miniterra/random.mt        ) | Tausworthe PRNG |
 | [miniterra.memcheck      ](lua/miniterra/memcheck.mt      ) | Leak-checking allocator |
 
-## Implementation
+# Implementation
 
 Unlike Terra which uses the LLVM C++ API to generate LLVM IR, miniterra
 generates C code which is then compiled with your favorite C compiler (gcc).
