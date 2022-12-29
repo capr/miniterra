@@ -36,8 +36,8 @@ is written in Lua, based on a Lua lexer and parser library called `lx`.
 `lx` is a standalone library which allows embedding other languages inside
 Lua, another [idea from Terra](https://terralang.org/api.html#embedding-new-languages-inside-lua).
 Miniterra is implemented as an embedded language based on this library.
-You can use `lx` to implement your own embedded languages that have nothing
-to do with Terra as long as their syntax is made only of Lua/Terra lexical
+You can use `lx` to implement your own embedded language that has nothing
+to do with Terra as long as its syntax is made only of Lua/Terra lexical
 units and there's a clear set of keywords that mark the beginning of
 a statement or expression in the language.
 
@@ -50,7 +50,7 @@ recursive-descent parser with a simple way to handle operator precedence.
 Lua modules except for the syntax `import'foo'` which you can use anywhere
 in the Lua code, in any scope, to load the embedded language `foo` in that
 scope. You can import multiple languages in the same Lua scope as long as
-each one uses different starting keywords.
+each one uses different starting tokens.
 
 A language must be implemented in a Lua module with the same name. A language
 module must contain a function called `lang` that returns the keywords that
@@ -106,20 +106,19 @@ tokens of a particular statement/expression using the `lx` object which
 contains all the necessary functions for that.
 
 `lx` can also be used to parse and eval embedded Lua expressions that can
-appear inside your embedded language, if your language supports such
-a feature. In addition, you can tell `lx` to create nested lexical scopes
-and declare symbols within those scopes. Embedded Lua expressions will then
-be able to reference those symbols as well as any locals from the outer Lua
-scope. Miniterra uses this feature of `lx` to implement escapes that can see
-both Terra vars from the surrounding Terra scope as well as Lua vars from the
-outer Lua scope. You can use this feature in your own embedded language if
-your language is lexically scoped and you want to implement escaping to Lua
-in your language with the ability to access symbols from the lexical scope
-in which you do the escape.
+appear inside your embedded language, if it makes sense for your language to
+support such a feature. In addition, you can tell `lx` to create nested
+lexical scopes and declare symbols within those scopes. Embedded Lua
+expressions will then be able to reference those symbols as well as any
+locals from the outer Lua scope. Miniterra uses this feature of `lx` to
+implement escapes that can see both Terra vars from the surrounding Terra
+scope as well as Lua vars from the outer Lua scope. You can use this feature
+in your own embedded language if your language is lexically scoped and you
+want to implement escaping to Lua in it with the ability to access symbols
+from the lexical scope of the escape.
 
-`lx` also contains an infix expression parser generator that supports
-custom operators (binary and prefix unary), precedence levels and left and
-right associativity for each operator.
+`lx` also contains an infix expression parser generator on which you can
+specify operators (binary and prefix-unary), precedence levels and associativity.
 
 # Installing
 
