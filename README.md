@@ -1,30 +1,87 @@
 
 # Overview
 
-Miniterra is programming language derived from [Terra](https://terralang.org/).
+Miniterra is programming language derived from [Terra](https://terralang.org/)
+that compiles to C. It works on Windows, Mac and Linux with LuaJIT 2.1 and GCC.
 
 It differs from Terra in the following ways:
 
 ## Language
 
-* reintroducing lazy typechecking.
+* reintroducing lazy typechecking, which unlocks some meta-programming use cases.
+* using Lua's scoping rules, which allows variable shadowing.
 * reintroducing automatic function overloading.
-* function overriding works with overloaded functions.
-* return-type inference works with all of the above.
-* variable shadowing is allowed like in Lua.
 * operator precedence was changed to be the same as in Lua.
-   * operator `^` does `pow()` like in Lua.
-   * operator `xor` was added.
+* operator `^` does `pow()` like in Lua.
+* operator `xor` was added.
+* different semantics for `__for`.
+* struct, field and function annotations.
+* nested functions with lexical scoping.
+* ++, +=, -=, *= /=, ^=, >>=, <<= assignment operators.
 
 ## Runtime
 
-* can't import C headers directly as there's no C parser.
-   * but you can use function prototypes declared with `ffi.cdef`.
+* can't import unsanitized C headers directly as there's no full-spec C parser.
+  * but you can use `ffi.cdef` headers.
 * can't call Terra code from Lua as there's no JIT compiler.
-   * but ffi cdefs and metatypes can be auto-generated for Terra
-     functions so you can call into your Terra binaries from Lua via ffi.
-   * on the flip side, you don't have to ship a 50 MB binary either,
-     just your compiled Terra code (inside or outside your executable).
+  * but LuaJIT ffi bindings (cdefs and metatypes) can be auto-generated for
+    Terra functions so you can call into your Terra binaries from Lua directly.
+  * on the flip side, you don't have to ship the clang+LLVM 50 MB binary,
+    in fact you don't even have to ship lx and miniterra, just your compiled
+    Terra code, either as a shared library or as a static library to be
+    linked with your executable.
+
+# Building
+
+Binaries are included in the repo for Windows and Linux so you can skip this
+step unless you're on a Mac, an old Linux or you don't trust the binaries.
+
+The build script is for GCC. Use MSYS2 on Windows.
+For OSX you can build on OSX or cross-compile from Linux.
+
+The build command is:
+
+```
+sh c/build.sh
+```
+
+The result is static and dynamic libraries in `bin/OS`.
+
+# Installation
+
+Put the Lua code from the `lua` dir in your Lua path.
+
+Put the dynamic libs from `bin/OS` where your LuaJIT exe is.
+
+# Using
+
+```Lua
+require'miniterra'
+local foo = require'foo' --load `foo.mt` which declares some Terra functions
+foo.f:compile()
+
+```
+
+# Standard library
+
+Miniterra comes with a set of libraries to get you started:
+
+| Module           | Description                                             |
+|------------------|---------------------------------------------------------|
+| `low`            | Lua+Terra standard library and low level tools |
+| `arrayview`      | Array view type |
+| `dynarray`       | Dynamic array type |
+| `hashmap`        | Hashmap type |
+| `rawstringview`  | Raw string arrayview and dynarray type |
+| `phf`            | Perfect hash function generator |
+| `linkedlist`     | self-allocated doubly-linked list |
+| `fixedfreelist`  | Fixed-capacity freelist |
+| `arrayfreelist`  | Freelist based on a dynamic array |
+| `lrucache`       | LRU cache, size-limited and count-limited |
+| `bitarray`       | 1-D and 2-D bit array type |
+| `utf8`           | UTF-8 encoding and decoding |
+| `random`         | Tausworthe PRNG |
+| `memcheck`       | Leak-checking allocator |
 
 ## Implementation
 
@@ -72,7 +129,7 @@ local function expression_function(lx) --parser constructor
       --in here, use lx to:
       -- * consume the tokens of this statement or expression:
       --    * use lx.next(), lx.lookahead(), etc.
-      -- * create local scopes and declare local symbols inside them:
+      -- * create lexical scopes and declare local symbols inside them:
       --    * use lx.begin_scope(), lx.symbol(), lx.end_scope()
       -- * parse embedded Lua expressions to be eval'ed later at bind time:
       --    * use lx.luaexpr() which returns a bind function.
@@ -120,24 +177,3 @@ from the lexical scope of the escape.
 `lx` also contains an infix expression parser generator on which you can
 specify operators (binary and prefix-unary), precedence levels and associativity.
 
-# Installing
-
-Binaries are included in the repo for Windows and Linux.
-Build your own for OSX.
-
-Put the Lua files in your Lua path.
-
-Put the dynamic libraries where your LuaJIT exe is.
-
-# Building
-
-The build script is for GCC. Use MSYS2 on Windows.
-For OSX you can build on OSX or cross-compile from Linux.
-
-The build command is:
-
-```
-sh build.sh
-```
-
-The result is static and dynamic libraries in `bin/OS`.
