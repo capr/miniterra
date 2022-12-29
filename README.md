@@ -64,7 +64,7 @@ foo.f:compile()
 
 # Standard library
 
-Miniterra comes with a set of libraries to get you started:
+Miniterra comes with a set of basic libraries to get you started:
 
 | Module | Description |
 |--------|-------------|
