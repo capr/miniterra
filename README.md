@@ -66,22 +66,22 @@ foo.f:compile()
 
 Miniterra comes with a set of libraries to get you started:
 
-| Module           | Description                                             |
-|------------------|---------------------------------------------------------|
-| `low`            | Lua+Terra standard library and low level tools |
-| `arrayview`      | Array view type |
-| `dynarray`       | Dynamic array type |
-| `hashmap`        | Hashmap type |
-| `rawstringview`  | Raw string arrayview and dynarray type |
-| `phf`            | Perfect hash function generator |
-| `linkedlist`     | self-allocated doubly-linked list |
-| `fixedfreelist`  | Fixed-capacity freelist |
-| `arrayfreelist`  | Freelist based on a dynamic array |
-| `lrucache`       | LRU cache, size-limited and count-limited |
-| `bitarray`       | 1-D and 2-D bit array type |
-| `utf8`           | UTF-8 encoding and decoding |
-| `random`         | Tausworthe PRNG |
-| `memcheck`       | Leak-checking allocator |
+| Module | Description |
+|--------|-------------|
+| [miniterra.low           ](lua/miniterra/low.mt           ) | Lua+Terra standard library and low level tools |
+| [miniterra.arrayview     ](lua/miniterra/arrayview.mt     ) | Array view type |
+| [miniterra.dynarray      ](lua/miniterra/dynarray.mt      ) | Dynamic array type |
+| [miniterra.hashmap       ](lua/miniterra/hashmap.mt       ) | Hashmap type |
+| [miniterra.rawstringview ](lua/miniterra/rawstringview.mt ) | Raw string arrayview and dynarray type |
+| [miniterra.phf           ](lua/miniterra/phf.mt           ) | Perfect hash function generator |
+| [miniterra.linkedlist    ](lua/miniterra/linkedlist.mt    ) | self-allocated doubly-linked list |
+| [miniterra.fixedfreelist ](lua/miniterra/fixedfreelist.mt ) | Fixed-capacity freelist |
+| [miniterra.arrayfreelist ](lua/miniterra/arrayfreelist.mt ) | Freelist based on a dynamic array |
+| [miniterra.lrucache      ](lua/miniterra/lrucache.mt      ) | LRU cache, size-limited and count-limited |
+| [miniterra.bitarray      ](lua/miniterra/bitarray.mt      ) | 1-D and 2-D bit array type |
+| [miniterra.utf8          ](lua/miniterra/utf8.mt          ) | UTF-8 encoding and decoding |
+| [miniterra.random        ](lua/miniterra/random.mt        ) | Tausworthe PRNG |
+| [miniterra.memcheck      ](lua/miniterra/memcheck.mt      ) | Leak-checking allocator |
 
 ## Implementation
 
