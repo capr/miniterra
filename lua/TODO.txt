@@ -1,0 +1,24 @@
+
+LX: enter embedded language through an operator.
+	* specify priority.
+	* the operator must necessarily have Lua expressions as operands.
+		* implement `&T` and `T->T`
+
+globals
+
+type inference
+
+overload selection
+
+labels and goto
+
+quotes
+casts
+fixed-size arrays
+	syntax
+	pass-by-value
+multi-ret (tuples)
+pointers
+sse vectors
+sizeof
+offsetof
