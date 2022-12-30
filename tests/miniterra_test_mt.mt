@@ -1,12 +1,25 @@
---require'pp'
 local mt = require'miniterra'
 import'miniterra'
 
-local b = {type = 'type'}
+struct s {
+	a: int,
+	b: bool,
+}
+
+terra g :: {int, int} -> bool
+
+terra h() end
 
 terra f()
-	var a
-	if a < b then end
+	--var i: int, j: bool = 5, i
+	--var i: int = 5
+	--var j: bool = i
+	--a.b, b = c:m()+5, d
+	--var a
+	--if a < b then
+	--else
+	--end
+	--g()
 	--if a .. b .. c then end
 	--if not i < x or j < y or k < z then end
 	--if i < x .. j < y .. k < z then end
@@ -14,18 +27,6 @@ end
 
 --[==[
 print'hello'
-
-local int  = {type = 'type', ctype = 'int'}
-local bool = {type = 'type', ctype = 'bool'}
-
-struct S {
-
-	x: int,
-	y: bool,
-
-}
-
-terra g :: {int, int} -> bool
 
 function add(sym)
 	pr(sym)
@@ -50,6 +51,9 @@ a = 2 + 3 / 5 ^ 7
 --pr(f)
 ]==]
 
+pr(s)
+pr(g)
+pr(h)
 pr(f)
-pr(mt.format_expr(f[2].cond))
+--pr(f[2].cond:tostring())
 

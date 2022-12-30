@@ -27,10 +27,10 @@ TOKEN PARSING
 		'...'  '..'  '->'  '<<'  '>>'
 		'+'  '-' ...                     single-char token. all non-parsables are single-char tokens!
 	lx.val() -> v                       get the parsed value of current token if it's a literal
-	lx.line -> n                        current line in the file
-	lx.offset -> i                      current offset in the file
-	lx.end_line -> n                    line where current token ends
-	lx.end_offset -> i                  file offset where current token ends
+	lx.line() -> line, line_pos         current line and char position in current line
+	lx.offset() -> file_pos             current char offset in the file
+	lx.end_line() -> line               line where current token ends
+	lx.end_offset() -> file_pos         file offset where current token ends
 	lx.next() -> s                      consume token and get next token
 	lx.nextif(s) -> s                   consume token and get next token if it's s
 	lx.lookahead() -> s                 get next token without consuming the current one
@@ -696,13 +696,11 @@ function M.lexer(arg, filename)
 	}
 
 	local function assignment() --expr_primary,... = expr,...
-		if nextif',' then --collect LHS list and recurse upwards.
+		while nextif',' do
 			expr_primary()
-			assignment()
-		else --parse RHS.
-			expect'='
-			expr_list()
 		end
+		expect'='
+		expr_list()
 	end
 
 	local function label() --::name::
@@ -886,7 +884,7 @@ function M.lexer(arg, filename)
 
 	--frontend ----------------------------------------------------------------
 
-	function lx.load()
+	function lx.load(env)
 		lx.next()
 		lx.luastats()
 
@@ -923,16 +921,18 @@ function M.lexer(arg, filename)
 		--print(s) --see the whole metaprogram
 		local func, err = loadstring(s, lx.filename, 't')
 		if not func then return nil, err end
-		_G.import = function() end
-		_G['\xc2\xa7'] = function(i) --lang expr constructor
+		env = env or _G
+		env.import = function() end
+		env['\xc2\xa7'] = function(i) --lang expr constructor
 			return subst[i].cons()
 		end
-		_G['\xc2\xa8'] = function(subst_id, luaexpr_id, luaexpr_val) --luaexpr evaluator
+		env['\xc2\xa8'] = function(subst_id, luaexpr_id, luaexpr_val) --luaexpr evaluator
 			subst[subst_id].luaexprs[luaexpr_id] = luaexpr_val
 		end
-		_G['\xc2\xa9'] = function(subst_id, symbol_id) --symbol binder
+		env['\xc2\xa9'] = function(subst_id, symbol_id) --symbol binder
 			return subst[subst_id].symbols[symbol_id]
 		end
+		setfenv(func, env)
 		return func
 	end
 
