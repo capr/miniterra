@@ -1,3 +1,4 @@
+<b>NOTE: Work-in-progress. Do not use yet!</b>
 
 # Miniterra
 
