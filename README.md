@@ -7,7 +7,7 @@ that compiles to C. It works on Windows, Linux and Mac with LuaJIT 2.1 and GCC.
 
 It differs from Terra in the following ways:
 
-## Language
+### Language differences
 
 * reintroducing lazy typechecking, which unlocks some meta-programming use cases.
 * using Lua's scoping rules, which allows variable shadowing.
@@ -20,7 +20,7 @@ It differs from Terra in the following ways:
 * nested functions with lexical scoping.
 * ++, +=, -=, *= /=, ^=, >>=, <<= assignment operators.
 
-## Runtime
+### Runtime differences
 
 * can't import unsanitized C headers directly as there's no full-spec C parser.
   * but you can use `ffi.cdef` headers and get a 10x speed-up over clang as a bonus.
